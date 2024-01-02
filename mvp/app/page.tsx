@@ -1,22 +1,52 @@
-import DatabaseView from "@/components/database-view"
-import ChatView from "@/components/chat-view"
 import { FlowerIcon } from "@/public/icons"
+import { createClient } from "@supabase/supabase-js";
+import { Item, SelectedItemsLookup} from "@/types/client";
+import ExploreView from "@/components/ExploreView";
 
-export default function Page() {
+async function populateDatabase() {
+  const supabaseURL = process.env.SUPABASE_URL!;
+  const supabaseKey = process.env.SUPABASE_KEY!;
+  const client = createClient(
+      supabaseURL,
+      supabaseKey
+  );
+  const { data, error } = await client
+      .from('items')
+      .select('*')
+      .limit(10)
+  if (error) {
+      console.log(error);
+      return [];
+  }
+  else return data
+}
+
+var initItems: Item[] = [];
+var selectedLookup: SelectedItemsLookup = {};
+var props = {};
+
+export default async function Page() {
+
+  if (initItems.length === 0) {
+    initItems = await populateDatabase();
+    selectedLookup = initItems.reduce((acc: SelectedItemsLookup, item: Item) => { 
+      acc[item.id] = false;
+      return acc;
+    }, {});
+
+    props = {
+      initItems: initItems,
+      selectedLookup: selectedLookup,
+    }
+  }
+
   return (
     <main className="font-serif">
       <header className='h-[50px] flex justify-center items-center gap-2 border-b'>
         <FlowerIcon className='w-6 h-6 text-primary' />
         <h1 className='text-lg'>LilyPad</h1>
       </header>
-      <div className='flex h-[calc(100vh-50px)]'>
-        <div className='relative flex-shrink-0 w-1/2 px-6 pb-6 overflow-y-auto'>
-          <DatabaseView/>
-        </div>
-        <div className='w-1/2 border-l overflow-y-auto'>
-          <ChatView className='w-full'/>
-        </div>
-      </div>
+      <ExploreView initItems={initItems} selectedLookup={selectedLookup} />
     </main>
   )
 }

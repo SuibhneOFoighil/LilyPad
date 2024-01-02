@@ -1,33 +1,72 @@
 'use client';
 
-import { displayMessages } from "@/test/chathistory";
 import { useChat } from 'ai/react';
 import { Message } from 'ai';
 import ChatBubble from "./ChatBubble";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faBroom } from "@fortawesome/free-solid-svg-icons"
-import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import { useState } from 'react';
+import type { FormEvent } from "react";
+import { SelectedItemsLookup } from '@/types/client';
+import { ChatRequestOptions } from 'ai';
 
-function clearChat() {
-  console.log('clear chat');
-}
+import { faCircle } from '@fortawesome/free-solid-svg-icons';
 
-export default function ChatView({ className }: {className: string}) {
+export default function ChatView(props: any) {
 
-    const { messages, input, handleInputChange, handleSubmit } = useChat({
-        initialMessages: displayMessages,
-        initialInput: ''
+    const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+
+    const { 
+      messages, input, setInput, handleInputChange, handleSubmit, isLoading: chatEndpointIsLoading, setMessages } = useChat({
+        api: "api/chat",
+        onResponse(response) {
+          const sourcesHeader = response.headers.get("x-sources");
+          const sources = sourcesHeader ? JSON.parse(Buffer.from(sourcesHeader, "base64").toString()) : [];
+          const messageIndexHeader = response.headers.get("x-message-index");
+          if (sources.length && messageIndexHeader !== null) {
+            setSourcesForMessages({...sourcesForMessages, [messageIndexHeader]: sources});
+          }
+        },
+        onError(error) {
+          console.log(error);
+        },
+        onFinish() {
+          setIsLoading(false);
+        }
     });
+
+    async function sendMessage(e: FormEvent<HTMLFormElement>) {
+      e.preventDefault();
+      console.log('send message');
+      if (chatEndpointIsLoading) {
+        return;
+      }
+      if (input === '') {
+        return;
+      }
+      setIsLoading(true);
+      const data: SelectedItemsLookup = props.selectedItems;
+      const selectedIds = Object.keys(data).filter((id) => data[id]);
+      const options: ChatRequestOptions = {
+        options: {
+          body: {
+            itemIds: selectedIds,
+          },
+        }
+      };
+      handleSubmit(e, options);
+    }
 
     return (
       <div className="pt-4">
 
         <div className='absolute right-0 top-0 h-[50px] flex items-center px-4'>
           <Tooltip title="Clear chat">
-            <IconButton onClick={clearChat}>
+            <button onClick={() => setMessages([])}>
               <FontAwesomeIcon icon={faBroom} className='text-gray-500 hover:text-gray-800' />
-            </IconButton>
+            </button>
           </Tooltip>
         </div>
 
@@ -35,7 +74,11 @@ export default function ChatView({ className }: {className: string}) {
           
           {/* chat history */}
           <div id="chatbox" className="overflow-scroll flex-col px-4 gap-2">
-              {messages.map((m: Message) => (<ChatBubble key={m.id} role={m.role} content={m.content} />))}
+              {
+                messages.map((message: Message, index: number) => {
+                  return <ChatBubble key={index} message={message} sources={sourcesForMessages[index.toString()]} />
+                })
+              }
               <div style={{ height: '90px' }}></div>
           </div>
 
@@ -44,7 +87,7 @@ export default function ChatView({ className }: {className: string}) {
             <div className="mx-4 shadow shadow-primary rounded-lg fixed bottom-5 w-2/5 bg-white hover:bg-gray-100 outline outline-1 outline-gray-200">
               <form 
               key="1"
-              onSubmit={handleSubmit}
+              onSubmit={sendMessage}
               className="flex">
                 <input
                 value={input}
@@ -54,13 +97,11 @@ export default function ChatView({ className }: {className: string}) {
                 placeholder="Type message"
                 type="text"
                 />
-                <button
-                aria-label="Send message"
-                className="ml-4 px-4 text-gray-500 hover:text-gray-700 focus:outline-none"
-                type="submit"
-                >
-                    <SendIcon className="w-6 h-6" />
-                </button>
+                { 
+                  isLoading ?
+                  <LoadingIcon /> :
+                  <SendButton />
+                }
               </form>
             </div>
           </div>
@@ -93,3 +134,27 @@ export default function ChatView({ className }: {className: string}) {
       </svg>
     )
   }
+
+  function LoadingIcon() {
+  return (
+    <Tooltip title="Loading...">
+      <div className='flex items-center ml-4 px-4 text-gray-500 hover:text-gray-700 focus:outline-none'>
+        <FontAwesomeIcon icon={faCircle} className='thinking' />
+      </div>
+    </Tooltip>
+  );
+}
+
+const SendButton = () => {
+  return (
+    <Tooltip title="Send message">
+      <button
+      aria-label="Send message"
+      className="ml-4 px-4 text-gray-500 hover:text-gray-700 focus:outline-none"
+      type="submit"
+      >
+        <SendIcon className="w-6 h-6" />
+      </button>
+    </Tooltip>
+  )
+}

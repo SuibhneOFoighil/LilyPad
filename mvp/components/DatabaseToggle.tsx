@@ -3,6 +3,7 @@
 import * as React from 'react';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 export default function ViewToggle() {
   const [alignment, setAlignment] = React.useState<string | null>('left');
@@ -23,10 +24,7 @@ export default function ViewToggle() {
       className='rounded-lg'
     >
       <ToggleButton value="left" className='font-serif'>
-        all
-      </ToggleButton>
-      <ToggleButton value="center" className='font-serif'>
-        selected
+        
       </ToggleButton>
       <ToggleButton value="right" className='font-serif'>
         unselected
