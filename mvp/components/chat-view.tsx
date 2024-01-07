@@ -2,7 +2,7 @@
 
 import { useChat } from 'ai/react';
 import { Message } from 'ai';
-import ChatBubble from "./ChatBubble";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faBroom } from "@fortawesome/free-solid-svg-icons"
 import Tooltip from '@mui/material/Tooltip';
@@ -12,6 +12,10 @@ import { SelectedItemsLookup } from '@/types/client';
 import { ChatRequestOptions } from 'ai';
 
 import { faCircle } from '@fortawesome/free-solid-svg-icons';
+
+import ChatBubble from './ChatBubble';
+
+import type { Citation } from '@/types/client';
 
 export default function ChatView(props: any) {
 
@@ -23,7 +27,7 @@ export default function ChatView(props: any) {
         api: "api/chat",
         onResponse(response) {
           const sourcesHeader = response.headers.get("x-sources");
-          const sources = sourcesHeader ? JSON.parse(Buffer.from(sourcesHeader, "base64").toString()) : [];
+          const sources: Citation[] = sourcesHeader ? JSON.parse(Buffer.from(sourcesHeader, "base64").toString()) : [];
           const messageIndexHeader = response.headers.get("x-message-index");
           if (sources.length && messageIndexHeader !== null) {
             setSourcesForMessages({...sourcesForMessages, [messageIndexHeader]: sources});
@@ -76,7 +80,13 @@ export default function ChatView(props: any) {
           <div id="chatbox" className="overflow-scroll flex-col px-4 gap-2">
               {
                 messages.map((message: Message, index: number) => {
-                  return <ChatBubble key={index} message={message} sources={sourcesForMessages[index.toString()]} />
+                  
+                  const chatBubbleProps = {
+                    message: message,
+                    sources: sourcesForMessages[index.toString()],
+                    setSourceViewer: props.setSourceViewer,
+                  }
+                  return <ChatBubble key={index} {...chatBubbleProps} />
                 })
               }
               <div style={{ height: '90px' }}></div>

@@ -1,10 +1,10 @@
-// import Markdown from 'react-markdown'
 import { FlowerIcon, UserIcon, SquareStackIcon } from '@/public/icons'
-import { Message } from 'ai';
+import type { CitedItem } from '@/types/client';
 
-export default function ChatBubble({ message, sources }: {message: Message, sources: any[]}) {
-  let { content, role } = message
-  let profile;
+export default function ChatBubble({ ...props}) {
+  const { message, sources, setSourceViewer } = props
+  const { content, role } = message
+  let profile = null
   let isAssistant = role === 'assistant'
 
   if (isAssistant) {
@@ -38,14 +38,26 @@ export default function ChatBubble({ message, sources }: {message: Message, sour
               <div>
                 <h1 className="font-bold text-lg py-1">Sources</h1>
                 <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pt-2'>
-                {sources?.map((src) => {
-                  const { citationNumber, pageContent, metadata } = src
-                  const { title } = metadata
+                {sources?.map((src: CitedItem) => {
+                  const {
+                    citationNumber,
+                    name,
+                    author,
+                  } = src
+                  const displayedTitle = name.length > 50 ? name.substring(0, 50) + '...' : name
                   return (
-                    <button className='p-4 rounded-lg shadow'>
-                      <div className='text-lg font-bold text-sm'>{title}</div>
-                      <div className='text-sm'>{pageContent}</div>
-                      <div className='text-lg font-bold text-gray-500'>{citationNumber}</div>
+                    <button 
+                    className='p-4 rounded-lg shadow hover:bg-gray-100 outline outline-1 outline-gray-200 flex-col justify-between'
+                    onClick={() => {
+                      setSourceViewer(src);
+                    }}>
+                      <div className='flex gap-2 h-full'>
+                        <p className="text-med font-semibold">{citationNumber}</p>
+                        <div className='flex flex-col justify-between'>
+                          <p className="text-sm">{displayedTitle}</p>
+                          <p className="text-sm italic">{author}</p>
+                        </div>
+                      </div>
                     </button>
                       )
                     })}

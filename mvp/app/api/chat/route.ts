@@ -12,17 +12,23 @@ import {
 import { BytesOutputParser} from "langchain/schema/output_parser";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
-import { Document } from "langchain/dist/document";
+import type { Document } from "langchain/dist/document";
+
+import type { Item, CitedItem } from "@/types/client";
 
 export const runtime = "edge";
 
 function combineDocuments(documents: Document[]) {
   const serializedDocs = documents.map(
     (doc, i) => {
-      const title = doc.metadata["title"]
-      const author = doc.metadata["author"]
+      const metadata = doc.metadata
       const content = doc.pageContent
-      return `[${i+1}] from "${title}" by ${author}: \n "${content}"`
+      const {
+        name,
+        author,
+        course
+      } = metadata
+      return `[${i+1}] from "${name}" taught by ${author} in ${course}: \n "${content}"`
     }
   )
   return serializedDocs.join('\n\n');
@@ -34,11 +40,11 @@ function combineDocuments(documents: Document[]) {
  * https://js.langchain.com/docs/guides/expression_language/cookbook#conversational-retrieval-chain
  */
 export async function POST(req: NextRequest) {
-  console.log("POST request received");
+  // console.log("POST request received");
   try {
     const body = await req.json();
 
-    console.log("request body", body)
+    // console.log("request body", body)
 
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
@@ -46,8 +52,9 @@ export async function POST(req: NextRequest) {
     const requestedIds: string[] = body.itemIds ?? [];
     const requestedIdsString = `(${requestedIds.join(',')})`;
     // console.log("requestedIdsString", requestedIdsString);
+
     const idFilterFN: SupabaseFilterRPCCall = (rpc) =>
-      rpc.filter("metadata->>video_id", "in", requestedIdsString);
+      rpc.filter("metadata->>item_id", "in", requestedIdsString);
 
     const model = new ChatOpenAI({
       modelName: "gpt-3.5-turbo",
@@ -76,6 +83,31 @@ export async function POST(req: NextRequest) {
     });
 
     const documents = await retriever.getRelevantDocuments(currentMessageContent);
+    
+    // get additional information about items (is this going to work?)
+    const item_ids: number[] = documents.map((doc) => doc.metadata.item_id)
+    const items_lookup: Record<number, any> = {} 
+    item_ids.map(async (id) => {
+      if (!(id in items_lookup)) {
+        console.log("searching for item_id =", id);
+        const { data, error } = await client.from("items").select("*").eq("id", id);
+        if (error) {
+          console.log(error);
+        }
+        else {
+          console.log("recieved:", data);
+          items_lookup[id] = data;
+        }
+      }
+    })
+    console.log(items_lookup)
+    // add item information to documents
+    documents.map((doc) => {
+      const item_id = doc.metadata.item_id
+      const item_data = items_lookup[item_id]
+      doc.metadata = {...doc.metadata, item_data}
+    })
+
     const context = combineDocuments(documents)
 
     console.log("Context: ", context);
@@ -112,11 +144,27 @@ export async function POST(req: NextRequest) {
     const serializedSources = Buffer.from(
       JSON.stringify(
         documents.map((doc, i) => {
-          return {
+          const { id, pageNumber } = doc.metadata;
+          // const url = `https://www.youtube.com/embed/${video_id}?autoplay=1&start=${timestamp}`;
+          // grab details about item from items table
+          const {
+            name,
+            sourceUrl,
+            author,
+            courseName,
+            summary
+          } = items_lookup[id]
+          const citation: CitedItem = {
+            id,
+            name,
+            author,
+            sourceUrl,
+            courseName,
+            pageNumber,
+            documentContent: doc.pageContent,
             citationNumber: i + 1,
-            pageContent: doc.pageContent.slice(0, 50) + "...",
-            metadata: doc.metadata,
           };
+          return citation;
         }),
       ),
     ).toString("base64");
@@ -132,39 +180,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
-
-// export async function POST(req: Request) {
-//   try {
-//     const body = await req.json();
-//     const messages = body.messages ?? [];
-//     const previousMessages = messages.slice(0, -1);
-//     const currentMessageContent = messages[messages.length - 1].content;
-
-//     // post to flask server
-//     const flaskServer = 'http://localhost:3000/api/chat/qa';
-
-//     // Create a new request to the flask server
-//     const flaskRequest = new Request(flaskServer, {
-//       method: 'POST',
-//       headers: {
-//         'Content-Type': 'application/json',
-//       },
-//       body: JSON.stringify({ 
-//         messages: previousMessages, 
-//         query: currentMessageContent 
-//       }),
-//     });
-
-//     // Fetch the flask server
-//     const flaskResponse = await fetch(flaskRequest);
-//     const flaskResponseJson = await flaskResponse.json();
-//     const stream = flaskResponseJson.stream;
-    
-//     // Respond with the stream
-//     return stream;
-//   } catch (error) {
-//     // Handle the error here
-//     console.error(error);
-//     throw error;
-//   }
-// }

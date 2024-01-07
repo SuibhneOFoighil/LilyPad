@@ -13,12 +13,16 @@ async function populateDatabase() {
   const { data, error } = await client
       .from('items')
       .select('*')
-      .limit(10)
+      .limit(20)
   if (error) {
       console.log(error);
       return [];
   }
-  else return data
+  
+  else {
+    console.log(data)
+    return data
+  }
 }
 
 var initItems: Item[] = [];
