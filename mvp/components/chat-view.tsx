@@ -15,9 +15,14 @@ import { faCircle } from '@fortawesome/free-solid-svg-icons';
 
 import ChatBubble from './ChatBubble';
 
-import type { Citation } from '@/types/client';
+import type { CitedItem, ItemCitation } from '@/types/client';
 
-export default function ChatView(props: any) {
+export default function ChatView({ items_lookup, ...props}: {
+    items_lookup: Record<string, any>,
+    selectedItems: SelectedItemsLookup,
+    setSelectedItems: (selectedItems: SelectedItemsLookup) => void,
+    setSourceViewer: (source: CitedItem) => void,
+}) {
 
     const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
     const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -26,10 +31,20 @@ export default function ChatView(props: any) {
       messages, input, setInput, handleInputChange, handleSubmit, isLoading: chatEndpointIsLoading, setMessages } = useChat({
         api: "api/chat",
         onResponse(response) {
-          const sourcesHeader = response.headers.get("x-sources");
-          const sources: Citation[] = sourcesHeader ? JSON.parse(Buffer.from(sourcesHeader, "base64").toString()) : [];
+          const citationsHeader = response.headers.get("x-citations");
+          const citations = citationsHeader ? JSON.parse(Buffer.from(citationsHeader, "base64").toString()) : [];
           const messageIndexHeader = response.headers.get("x-message-index");
-          if (sources.length && messageIndexHeader !== null) {
+          if (citations.length && messageIndexHeader !== null) {
+            const sources: CitedItem[] = citations.map((citation: ItemCitation) => {
+              const { item_id, citation_number, page_number } = citation;
+              const item = items_lookup[item_id];
+              return {
+                ...item,
+                citation_number: citation_number,
+                page_number: page_number,
+              }
+            }, []);
+            console.log(sources);
             setSourcesForMessages({...sourcesForMessages, [messageIndexHeader]: sources});
           }
         },
@@ -64,7 +79,7 @@ export default function ChatView(props: any) {
     }
 
     return (
-      <div className="pt-4">
+      <div className='bg-container'>
 
         <div className='absolute right-0 top-0 h-[50px] flex items-center px-4'>
           <Tooltip title="Clear chat">
@@ -74,46 +89,44 @@ export default function ChatView(props: any) {
           </Tooltip>
         </div>
 
-        <div className={'flex flex-col justify-between gap-5 w-full h-full overflow-hidden ${className}'}>
           
-          {/* chat history */}
-          <div id="chatbox" className="overflow-scroll flex-col px-4 gap-2">
-              {
-                messages.map((message: Message, index: number) => {
-                  
-                  const chatBubbleProps = {
-                    message: message,
-                    sources: sourcesForMessages[index.toString()],
-                    setSourceViewer: props.setSourceViewer,
-                  }
-                  return <ChatBubble key={index} {...chatBubbleProps} />
-                })
-              }
-              <div style={{ height: '90px' }}></div>
-          </div>
-
-          {/* chat input */}
-          <div className="flex justify-center">
-            <div className="mx-4 shadow shadow-primary rounded-lg fixed bottom-5 w-2/5 bg-white hover:bg-gray-100 outline outline-1 outline-gray-200">
-              <form 
-              key="1"
-              onSubmit={sendMessage}
-              className="flex">
-                <input
-                value={input}
-                onChange={handleInputChange}
-                aria-label="Type message"
-                className="flex-grow px-4 py-4 text-on-container h-[56px] bg-transparent outline-none resize-none"
-                placeholder="Type message"
-                type="text"
-                />
-                { 
-                  isLoading ?
-                  <LoadingIcon /> :
-                  <SendButton />
+        {/* chat history */}
+        <div id="chatbox" className="flex flex-col px-2 mb-20">
+            {
+              messages.map((message: Message, index: number) => {
+                
+                const chatBubbleProps = {
+                  message: message,
+                  sources: sourcesForMessages[index.toString()],
+                  setSourceViewer: props.setSourceViewer,
                 }
-              </form>
-            </div>
+
+                return <ChatBubble key={index} {...chatBubbleProps} />
+              })
+            }
+        </div>
+
+        {/* chat input */}
+        <div className="flex justify-center">
+          <div className="mx-4 shadow shadow-primary rounded-lg fixed bottom-5 w-2/5 bg-white hover:bg-gray-100 outline outline-1 outline-gray-200">
+            <form 
+            key="1"
+            onSubmit={sendMessage}
+            className="flex">
+              <input
+              value={input}
+              onChange={handleInputChange}
+              aria-label="Type message"
+              className="flex-grow px-4 py-4 text-on-container h-[56px] bg-transparent outline-none resize-none"
+              placeholder="Type message"
+              type="text"
+              />
+              { 
+                isLoading ?
+                <LoadingIcon /> :
+                <SendButton />
+              }
+            </form>
           </div>
 
         </div>

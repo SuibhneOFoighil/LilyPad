@@ -38,21 +38,22 @@ export default function ChatBubble({ ...props}) {
               <div>
                 <h1 className="font-bold text-lg py-1">Sources</h1>
                 <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pt-2'>
-                {sources?.map((src: CitedItem) => {
+                {sources?.map((src: CitedItem, i: number) => {
                   const {
-                    citationNumber,
-                    name,
+                    citation_number,
+                    content_name,
                     author,
                   } = src
-                  const displayedTitle = name.length > 50 ? name.substring(0, 50) + '...' : name
+                  const displayedTitle = content_name.length > 50 ? content_name.substring(0, 50) + '...' : content_name
                   return (
-                    <button 
+                    <button
+                    key={i} 
                     className='p-4 rounded-lg shadow hover:bg-gray-100 outline outline-1 outline-gray-200 flex-col justify-between'
                     onClick={() => {
                       setSourceViewer(src);
                     }}>
                       <div className='flex gap-2 h-full'>
-                        <p className="text-med font-semibold">{citationNumber}</p>
+                        <p className="text-med font-semibold">{citation_number}</p>
                         <div className='flex flex-col justify-between'>
                           <p className="text-sm">{displayedTitle}</p>
                           <p className="text-sm italic">{author}</p>

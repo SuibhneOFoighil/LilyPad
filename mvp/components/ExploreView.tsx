@@ -6,7 +6,10 @@ import DatabaseItem from "./DatabaseItem";
 import ChatView from "./chat-view";
 import SourceViewer from "./source-viewer";
 
-const ExploreView = ({initItems, selectedLookup}: {
+const ExploreView = ({
+    initItems,
+    selectedLookup,
+}: {
     initItems: Item[],
     selectedLookup: SelectedItemsLookup,
 }) => {
@@ -25,6 +28,7 @@ const ExploreView = ({initItems, selectedLookup}: {
         items: items,
         selectedItems: selectedItems,
         setSelectedItems: setSelectedItems,
+        setSourceViewer: setSourceViewer,
     }
 
     const databaseNavBarProps = {
@@ -34,7 +38,13 @@ const ExploreView = ({initItems, selectedLookup}: {
         setSelectedItems: setSelectedItems,
     }
 
+    const items_lookup : Record<string, Item> = items.reduce((acc: Record<string, Item>, item: Item) => {
+        acc[item.id] = item;
+        return acc;
+    }, {});
+
     const chatViewProps = {
+        items_lookup: items_lookup,
         selectedItems: selectedItems,
         setSelectedItems: setSelectedItems,
         setSourceViewer: setSourceViewer,
@@ -69,5 +79,7 @@ const ExploreView = ({initItems, selectedLookup}: {
         </div>
     );
 }
+
+
 
 export default ExploreView;

@@ -1,48 +1,11 @@
-import { FlowerIcon } from "@/public/icons"
-import { createClient } from "@supabase/supabase-js";
+import { FlowerIcon } from "@/public/icons";
 import { Item, SelectedItemsLookup} from "@/types/client";
 import ExploreView from "@/components/ExploreView";
 
-async function populateDatabase() {
-  const supabaseURL = process.env.SUPABASE_URL!;
-  const supabaseKey = process.env.SUPABASE_KEY!;
-  const client = createClient(
-      supabaseURL,
-      supabaseKey
-  );
-  const { data, error } = await client
-      .from('items')
-      .select('*')
-      .limit(20)
-  if (error) {
-      console.log(error);
-      return [];
-  }
-  
-  else {
-    console.log(data)
-    return data
-  }
-}
-
-var initItems: Item[] = [];
-var selectedLookup: SelectedItemsLookup = {};
-var props = {};
-
 export default async function Page() {
 
-  if (initItems.length === 0) {
-    initItems = await populateDatabase();
-    selectedLookup = initItems.reduce((acc: SelectedItemsLookup, item: Item) => { 
-      acc[item.id] = false;
-      return acc;
-    }, {});
-
-    props = {
-      initItems: initItems,
-      selectedLookup: selectedLookup,
-    }
-  }
+  const initProps = await getInitProps();
+  const { initItems, selectedLookup } = initProps;
 
   return (
     <main className="font-serif">
@@ -50,7 +13,20 @@ export default async function Page() {
         <FlowerIcon className='w-6 h-6 text-primary' />
         <h1 className='text-lg'>LilyPad</h1>
       </header>
-      <ExploreView initItems={initItems} selectedLookup={selectedLookup} />
+      <ExploreView initItems={initItems} selectedLookup={selectedLookup}/>
     </main>
   )
+}
+
+async function getInitProps() {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+  const initItems = await fetch(`${baseUrl}/api/items`).then((res) => res.json());
+  const selectedLookup = initItems.reduce((acc: SelectedItemsLookup, item: Item) => { 
+      acc[item.id] = false;
+      return acc;
+  }, {});
+  return {
+      initItems: initItems,
+      selectedLookup: selectedLookup,
+  }
 }

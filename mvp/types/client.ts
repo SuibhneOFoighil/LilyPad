@@ -1,14 +1,19 @@
+interface ContentSection {
+    title: string,
+    summary: string,
+}
+
 export interface Item {
     id: number; // assign a unique id
-    fileName: string; // from file
-    numberPages: number; // from file
+    file_name: string; // from file
+    number_pages: number; // from file
     author: string; // from source directory
-    sourceUrl: string; // from source directory
-    courseName: string; // from source directory
-    contentName: string; // generated from file
-    contentSummary: string; // generated from file
-    contentSections: JSON // generated from file
-    contentBody: string; // generated from file
+    source_url: string; // from source directory
+    course_name: string; // from source directory
+    content_name: string; // generated from file
+    content_summary: string; // generated from file
+    content_sections: ContentSection[] // generated from file
+    content_body: string; // generated from file
 }
 
 export interface SelectedItemsLookup {
@@ -16,7 +21,13 @@ export interface SelectedItemsLookup {
 }
 
 export interface CitedItem extends Item {
-    citationNumber: number,
-    documentContent: string,
-    pageNumber: number
+    citation_number: number,
+    document_content: string,
+    page_number: number
+}
+
+export interface ItemCitation {
+    item_id: number,
+    citation_number: number,
+    page_number: number
 }

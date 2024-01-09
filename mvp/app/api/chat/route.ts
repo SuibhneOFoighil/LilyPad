@@ -14,38 +14,21 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import type { Document } from "langchain/dist/document";
 
-import type { Item, CitedItem } from "@/types/client";
+import type { ItemCitation } from "@/types/client";
 
 export const runtime = "edge";
 
-function combineDocuments(documents: Document[]) {
-  const serializedDocs = documents.map(
-    (doc, i) => {
-      const metadata = doc.metadata
-      const content = doc.pageContent
-      const {
-        name,
-        author,
-        course
-      } = metadata
-      return `[${i+1}] from "${name}" taught by ${author} in ${course}: \n "${content}"`
-    }
-  )
-  return serializedDocs.join('\n\n');
-}
-/**
- * This handler initializes and calls a retrieval chain. It composes the chain using
- * LangChain Expression Language. See the docs for more information:
- *
- * https://js.langchain.com/docs/guides/expression_language/cookbook#conversational-retrieval-chain
- */
+const client = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_KEY!,
+);
+
 export async function POST(req: NextRequest) {
   // console.log("POST request received");
   try {
     const body = await req.json();
 
     // console.log("request body", body)
-
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
@@ -53,24 +36,19 @@ export async function POST(req: NextRequest) {
     const requestedIdsString = `(${requestedIds.join(',')})`;
     // console.log("requestedIdsString", requestedIdsString);
 
-    const idFilterFN: SupabaseFilterRPCCall = (rpc) =>
-      rpc.filter("metadata->>item_id", "in", requestedIdsString);
-
     const model = new ChatOpenAI({
       modelName: "gpt-3.5-turbo",
       temperature: 0.2
     });
-
-    const client = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_KEY!,
-    );
 
     const vectorstore = new SupabaseVectorStore(new OpenAIEmbeddings(), {
       client,
       tableName: "documents",
       queryName: "match_documents",
     });
+
+    const idFilterFN: SupabaseFilterRPCCall = (rpc) =>
+      rpc.filter("metadata->>item_id", "in", requestedIdsString);
 
     // multi-query retrieval
     const retriever = MultiQueryRetriever.fromLLM({
@@ -82,35 +60,11 @@ export async function POST(req: NextRequest) {
       // verbose: true,
     });
 
-    const documents = await retriever.getRelevantDocuments(currentMessageContent);
+    const documents = await retriever.getRelevantDocuments(currentMessageContent) 
+    addMetadata(documents)
+    const context = combineDocuments(documents);
     
-    // get additional information about items (is this going to work?)
-    const item_ids: number[] = documents.map((doc) => doc.metadata.item_id)
-    const items_lookup: Record<number, any> = {} 
-    item_ids.map(async (id) => {
-      if (!(id in items_lookup)) {
-        console.log("searching for item_id =", id);
-        const { data, error } = await client.from("items").select("*").eq("id", id);
-        if (error) {
-          console.log(error);
-        }
-        else {
-          console.log("recieved:", data);
-          items_lookup[id] = data;
-        }
-      }
-    })
-    console.log(items_lookup)
-    // add item information to documents
-    documents.map((doc) => {
-      const item_id = doc.metadata.item_id
-      const item_data = items_lookup[item_id]
-      doc.metadata = {...doc.metadata, item_data}
-    })
-
-    const context = combineDocuments(documents)
-
-    console.log("Context: ", context);
+    // console.log("Context: ", context);
 
     const prompt = PromptTemplate.fromTemplate(`Take a deep breath. This is very important for my career.
     
@@ -136,43 +90,25 @@ export async function POST(req: NextRequest) {
       new BytesOutputParser(),
     ]);
 
-    const stream  = await answerChain.stream({
+    const stream = await answerChain.stream({
       context: context,
       question: currentMessageContent,
     });
 
-    const serializedSources = Buffer.from(
+    const serializedCitations = Buffer.from(
       JSON.stringify(
-        documents.map((doc, i) => {
-          const { id, pageNumber } = doc.metadata;
-          // const url = `https://www.youtube.com/embed/${video_id}?autoplay=1&start=${timestamp}`;
-          // grab details about item from items table
-          const {
-            name,
-            sourceUrl,
-            author,
-            courseName,
-            summary
-          } = items_lookup[id]
-          const citation: CitedItem = {
-            id,
-            name,
-            author,
-            sourceUrl,
-            courseName,
-            pageNumber,
-            documentContent: doc.pageContent,
-            citationNumber: i + 1,
-          };
+        documents.map((doc) => {
+          const { item_id, page_number, citation_number } = doc.metadata;
+          const citation : ItemCitation = { item_id, page_number, citation_number };
           return citation;
-        }),
+        })
       ),
     ).toString("base64");
 
     return new StreamingTextResponse(stream, {
       headers: {
         "x-message-index": (previousMessages.length + 1).toString(),
-        "x-sources": serializedSources,
+        "x-citations": serializedCitations,
       },
     });
   } catch (e: any) {
@@ -180,3 +116,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+
+function addMetadata(documents: Document[]) : void {
+  // add citation_number to documents
+  documents.map((doc, i) => {
+    const citation_number = i + 1
+    const metadata = {...doc.metadata, citation_number}
+    documents[i] = {...doc, metadata}
+  });
+}
+
+function combineDocuments(documents: Document[] | undefined) : string {
+  if (!documents) {
+    return "SORRY, NO DOCUMENTS FOUND. TRY AND BE HELPFUL."
+  }
+  const serializedDocs = documents.map(
+    (doc) => {
+      const content = doc.pageContent
+      const { citation_number } = doc.metadata
+      return `[${citation_number}]: "${content}"`
+    }
+  )
+  return serializedDocs.join('\n\n');
+}
+
+// async function addItemMetadata(documents:Document[]) : Promise<Document[] | undefined> {
+  //   const item_ids = documents.map((doc) => doc.metadata.item_id)
+  //   try {
+  //     // 1. query supabase for items
+  //     const {data, error} = await client.from("items").select("*").in("id", item_ids)
+  //     if (error) {
+  //       console.log(error);
+  //     }
+  //     else {
+  //       // 2. add item metadata to documents
+  //       const items_lookup: Record<number, any> = {}
+  //       data.map((item) => {
+  //         const id = item.id
+  //         items_lookup[id] = item
+  //       })
+  
+  //       // 3. return documents
+  //       return documents.map((doc) => {
+  //         const item_id = doc.metadata.item_id
+  //         const item_data = items_lookup[item_id]
+  //         const metadata = {...doc.metadata, item_data}
+  //         return {...doc, metadata}
+  //       })
+  //     }
+  //   } catch (error) {
+  //     console.log(error);
+  //   }
+  // }
