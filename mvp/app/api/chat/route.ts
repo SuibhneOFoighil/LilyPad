@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { StreamingTextResponse } from "ai";
 
-import { createClient } from "@supabase/supabase-js";
-
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { PromptTemplate } from "langchain/prompts";
 import { SupabaseFilterRPCCall, SupabaseVectorStore } from "langchain/vectorstores/supabase";
@@ -15,13 +13,9 @@ import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import type { Document } from "langchain/dist/document";
 
 import type { ItemCitation } from "@/types/client";
+import { supabase as client } from "../client";
 
 export const runtime = "edge";
-
-const client = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!,
-);
 
 export async function POST(req: NextRequest) {
   // console.log("POST request received");
@@ -32,9 +26,9 @@ export async function POST(req: NextRequest) {
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
-    const requestedIds: string[] = body.itemIds ?? [];
+    const requestedIds: number[] = body.itemIds ?? [];
     const requestedIdsString = `(${requestedIds.join(',')})`;
-    // console.log("requestedIdsString", requestedIdsString);
+    console.log("requestedIdsString", requestedIdsString);
 
     const model = new ChatOpenAI({
       modelName: "gpt-3.5-turbo",
@@ -57,14 +51,14 @@ export async function POST(req: NextRequest) {
         5, // number of documents to retrieve
         idFilterFN // metadata filter function
       ),
-      // verbose: true,
+      verbose: true,
     });
 
     const documents = await retriever.getRelevantDocuments(currentMessageContent) 
     addMetadata(documents)
     const context = combineDocuments(documents);
     
-    // console.log("Context: ", context);
+    console.log("Context: ", context);
 
     const prompt = PromptTemplate.fromTemplate(`Take a deep breath. This is very important for my career.
     

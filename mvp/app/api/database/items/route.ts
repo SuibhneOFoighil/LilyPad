@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createClient } from "@supabase/supabase-js";
-
-import type { Item } from "@/types/client";
+import { supabase as client } from "../../client";
 
 export const runtime = "edge";
-
-const client = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!,
-);
 
 export async function POST(request: NextRequest) {
     /*

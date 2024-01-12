@@ -15,13 +15,14 @@ import { faCircle } from '@fortawesome/free-solid-svg-icons';
 
 import ChatBubble from './ChatBubble';
 
-import type { CitedItem, ItemCitation } from '@/types/client';
+import type { Item, CitedItem, ItemCitation } from '@/types/client';
 
-export default function ChatView({ items_lookup, ...props}: {
-    items_lookup: Record<string, any>,
-    selectedItems: SelectedItemsLookup,
-    setSelectedItems: (selectedItems: SelectedItemsLookup) => void,
-    setSourceViewer: (source: CitedItem) => void,
+export default function ChatView({
+  itemsLookup, selectedItemsLookup, setSourceViewer
+}: {
+  itemsLookup: Record<string, Item>,
+  selectedItemsLookup: SelectedItemsLookup,
+  setSourceViewer: (source: Item) => void,
 }) {
 
     const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
@@ -37,7 +38,7 @@ export default function ChatView({ items_lookup, ...props}: {
           if (citations.length && messageIndexHeader !== null) {
             const sources: CitedItem[] = citations.map((citation: ItemCitation) => {
               const { item_id, citation_number, page_number } = citation;
-              const item = items_lookup[item_id];
+              const item = itemsLookup[item_id];
               return {
                 ...item,
                 citation_number: citation_number,
@@ -66,8 +67,7 @@ export default function ChatView({ items_lookup, ...props}: {
         return;
       }
       setIsLoading(true);
-      const data: SelectedItemsLookup = props.selectedItems;
-      const selectedIds = Object.keys(data).filter((id) => data[id]);
+      const selectedIds = selectedItemsLookup.getItemIds();
       const options: ChatRequestOptions = {
         options: {
           body: {
@@ -98,7 +98,7 @@ export default function ChatView({ items_lookup, ...props}: {
                 const chatBubbleProps = {
                   message: message,
                   sources: sourcesForMessages[index.toString()],
-                  setSourceViewer: props.setSourceViewer,
+                  setSourceViewer: setSourceViewer,
                 }
 
                 return <ChatBubble key={index} {...chatBubbleProps} />
