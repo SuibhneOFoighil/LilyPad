@@ -31,3 +31,29 @@ export interface ItemCitation {
     citation_number: number,
     page_number: number
 }
+
+export class SourceViewerProps {
+    private side: string;
+    private source: Item | null;
+    
+    public constructor(side: string) {
+        this.side = side;
+        this.source = null;
+    }
+
+    private getSide() {
+        return this.side;
+    }
+ 
+    public setSource(source: Item) {
+        this.source = source;
+    }
+
+    public hasSource() {
+        return this.source != null;
+    }
+
+    public getSource() {
+        return this.source;
+    }
+}

@@ -1,3 +1,5 @@
+"use client"
+
 import type { Item } from "@/types/client";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faX, faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
@@ -29,7 +31,7 @@ const DocumentSection = ({title, isOpen, body}: {title: string, isOpen: boolean,
   )
 }
 
-export default function SourceViewer({...props}) {
+export default function SourceViewer({ ...props}) {
 
   const source: Item = props.sourceViewer ;
   const setSourceViewer = props.setSourceViewer;
@@ -57,7 +59,7 @@ export default function SourceViewer({...props}) {
       <p>Pages: {source.number_pages}</p>
       <p>Author: {source.author}</p>
       <p>Course: {source.course_name}</p>
-      <iframe src={source.source_url} className="w-full h-300"></iframe>
+      <p>Source Link: {source.source_url}</p>
     </>
   )
 

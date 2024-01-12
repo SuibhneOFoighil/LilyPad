@@ -17,18 +17,35 @@ const ExploreView = ({
     const [items, setItems] = useState<Item[]>(
         initItems
     );
-    
-    const [sourceViewer, setSourceViewer] = useState<Item | null>(null);
 
     const [selectedItems, setSelectedItems] = useState<SelectedItemsLookup>(
         selectedLookup
     );
 
+    const [leftSourceViewer, setLeftSourceViewer] = useState<Item | null>(null);
+
+    const [rightSourceViewer, setRightSourceViewer] = useState<Item | null>(null);
+
+    const items_lookup : Record<string, Item> = items.reduce((acc: Record<string, Item>, item: Item) => {
+        acc[item.id] = item;
+        return acc;
+    }, {});
+
+    const leftSourceViewerProps = {
+        sourceViewer: leftSourceViewer,
+        setSourceViewer: setLeftSourceViewer,
+    }
+
+    const rightSourceViewerProps = {
+        sourceViewer: rightSourceViewer,
+        setSourceViewer: setRightSourceViewer,
+    }
+
     const databaseItemProps = {
         items: items,
         selectedItems: selectedItems,
         setSelectedItems: setSelectedItems,
-        setSourceViewer: setSourceViewer,
+        setSourceViewer: setRightSourceViewer,
     }
 
     const databaseNavBarProps = {
@@ -38,29 +55,19 @@ const ExploreView = ({
         setSelectedItems: setSelectedItems,
     }
 
-    const items_lookup : Record<string, Item> = items.reduce((acc: Record<string, Item>, item: Item) => {
-        acc[item.id] = item;
-        return acc;
-    }, {});
-
     const chatViewProps = {
         items_lookup: items_lookup,
         selectedItems: selectedItems,
         setSelectedItems: setSelectedItems,
-        setSourceViewer: setSourceViewer,
-    }
-
-    const sourceViewerProps = {
-        sourceViewer: sourceViewer,
-        setSourceViewer: setSourceViewer,
+        setSourceViewer: setLeftSourceViewer,
     }
 
     return (
         <div className='flex h-[calc(100vh-50px)]'>
             <div className='relative flex-shrink-0 w-1/2 px-6 pb-6 overflow-y-auto'>
                 {
-                    sourceViewer ? 
-                    <SourceViewer {...sourceViewerProps} /> :
+                    leftSourceViewer ? 
+                    <SourceViewer {...leftSourceViewerProps} /> :
                     // database view
                     <div className="bg-container p-4">
                         <DatabaseNavbar props={databaseNavBarProps}/>
@@ -74,12 +81,16 @@ const ExploreView = ({
             
             {/* chat view */}
             <div className='w-1/2 border-l overflow-y-auto'>
-                <ChatView {...chatViewProps} />
+                {
+                    rightSourceViewer ?
+                    <SourceViewer {...rightSourceViewerProps} /> :
+                    <ChatView {...chatViewProps} />
+                }
             </div>
         </div>
     );
 }
 
-
+// 
 
 export default ExploreView;
