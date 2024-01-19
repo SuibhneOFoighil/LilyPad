@@ -1,32 +1,28 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { Message } from 'ai';
+import type { Message } from 'ai';
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faBroom } from "@fortawesome/free-solid-svg-icons"
 import Tooltip from '@mui/material/Tooltip';
 import { useState } from 'react';
 import type { FormEvent } from "react";
-import { SelectedItemsLookup } from '@/types/client';
+import {  } from '@/types/client';
 import { ChatRequestOptions } from 'ai';
 
 import { faCircle } from '@fortawesome/free-solid-svg-icons';
 
-import ChatBubble from './ChatBubble';
+import { File, FileCitation, CitedFile, ItemsDatabase } from '@/types/client';
 
-import type { Item, CitedItem, ItemCitation } from '@/types/client';
+import { FlowerIcon, UserIcon, SquareStackIcon } from '@/public/icons'
 
-export default function ChatView({
-  itemsLookup, selectedItemsLookup, setSourceViewer
-}: {
-  itemsLookup: Record<string, Item>,
-  selectedItemsLookup: SelectedItemsLookup,
-  setSourceViewer: (source: Item) => void,
+export default function ChatView({itemsDatabase, setSourceViewer}: {
+    itemsDatabase: ItemsDatabase,
+    setSourceViewer: React.Dispatch<React.SetStateAction<File | null>>,
 }) {
 
     const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
-    const [isLoading, setIsLoading] = useState<boolean>(false);
 
     const { 
       messages, input, setInput, handleInputChange, handleSubmit, isLoading: chatEndpointIsLoading, setMessages } = useChat({
@@ -36,42 +32,41 @@ export default function ChatView({
           const citations = citationsHeader ? JSON.parse(Buffer.from(citationsHeader, "base64").toString()) : [];
           const messageIndexHeader = response.headers.get("x-message-index");
           if (citations.length && messageIndexHeader !== null) {
-            const sources: CitedItem[] = citations.map((citation: ItemCitation) => {
-              const { item_id, citation_number, page_number } = citation;
-              const item = itemsLookup[item_id];
-              return {
-                ...item,
-                citation_number: citation_number,
-                page_number: page_number,
-              }
-            }, []);
-            console.log(sources);
+              const sources: CitedFile[] = citations.map((citation: FileCitation) => {
+                  const file_id = citation.file_id;
+                  const file = itemsDatabase.getFileById(file_id);
+                  return {
+                      ...file,
+                      citation: citation,
+                  }
+              }, []);
+            // console.log(sources);
             setSourcesForMessages({...sourcesForMessages, [messageIndexHeader]: sources});
           }
         },
         onError(error) {
-          console.log(error);
+          console.log(error);        
         },
         onFinish() {
-          setIsLoading(false);
+          setInput('');
         }
     });
 
     async function sendMessage(e: FormEvent<HTMLFormElement>) {
       e.preventDefault();
-      console.log('send message');
       if (chatEndpointIsLoading) {
         return;
       }
       if (input === '') {
         return;
       }
-      setIsLoading(true);
-      const selectedIds = selectedItemsLookup.getItemIds();
+      const selectedFileIds = itemsDatabase.getSelectedFileIds();
+      const selectedCourseIds = itemsDatabase.getSelectedCourseIds();
       const options: ChatRequestOptions = {
         options: {
           body: {
-            itemIds: selectedIds,
+            selectedFileIds: selectedFileIds,
+            selectedCourseIds: selectedCourseIds,
           },
         }
       };
@@ -97,6 +92,7 @@ export default function ChatView({
                 
                 const chatBubbleProps = {
                   message: message,
+                  isLoading: chatEndpointIsLoading,
                   sources: sourcesForMessages[index.toString()],
                   setSourceViewer: setSourceViewer,
                 }
@@ -110,7 +106,6 @@ export default function ChatView({
         <div className="flex justify-center">
           <div className="mx-4 shadow shadow-primary rounded-lg fixed bottom-5 w-2/5 bg-white hover:bg-gray-100 outline outline-1 outline-gray-200">
             <form 
-            key="1"
             onSubmit={sendMessage}
             className="flex">
               <input
@@ -121,11 +116,7 @@ export default function ChatView({
               placeholder="Type message"
               type="text"
               />
-              { 
-                isLoading ?
-                <LoadingIcon /> :
-                <SendButton />
-              }
+              {chatEndpointIsLoading ? <LoadingIcon /> : <SendButton />}
             </form>
           </div>
 
@@ -179,5 +170,84 @@ const SendButton = () => {
         <SendIcon className="w-6 h-6" />
       </button>
     </Tooltip>
+  )
+}
+
+function ChatBubble({
+  message,
+  isLoading,
+  sources,
+  setSourceViewer,
+}: {
+  message: Message,
+  isLoading: boolean,
+  sources?: CitedFile[] | undefined,
+  setSourceViewer: React.Dispatch<React.SetStateAction<File | null>>,
+}) {
+
+  const { content, role } = message
+  let profile = null
+  let isAssistant = role === 'assistant'
+
+  if (isAssistant) {
+    profile = <div className="flex flex-shrink-0 items-center justify-center bg-primary rounded w-[36px] h-[36px]">
+      <FlowerIcon className="w-6 h-6" />
+    </div>
+  } else {
+    profile = <div className="flex flex-shrink-0 items-center justify-center bg-container rounded w-[36px] h-[36px]">
+      <UserIcon className="w-6 h-6" />
+    </div>
+  }
+
+  return (
+    <>
+      {/*  message  */}
+      <div className="flex flex-col p-4">
+        <div className="flex gap-4">
+          {profile}
+          <div className="whitespace-pre-wrap py-1">
+            { isAssistant ? <h1 className="font-bold text-lg pb-2">Answer</h1> : null }
+            <p>{content}</p>
+          </div>
+        </div>
+        {/* sources */}
+        { isAssistant && sources && sources?.length > 0 &&
+          <div className='pt-5'>
+            <div className='flex gap-4'>
+              <div className="flex flex-shrink-0 items-center justify-center bg-container rounded w-[36px] h-[36px]">
+                <SquareStackIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="font-bold text-lg py-1">Sources</h1>
+                <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pt-2'>
+                {sources?.map((src: CitedFile, i: number) => {
+                  const citation_number = src.citation.number;
+                  const content_name = src.name;
+                  const displayedTitle = content_name.length > 100 ? content_name.substring(0, 100) + '...' : content_name
+                  return (
+                    <button
+                    key={i} 
+                    className='p-4 rounded-lg shadow hover:bg-gray-100 outline outline-1 outline-gray-200 flex-col justify-between'
+                    onClick={() => {
+                      setSourceViewer(src);
+                    }}>
+                      <div className='flex gap-2 h-full'>
+                        <p className="text-med font-semibold">{citation_number}</p>
+                        <div className='flex flex-col justify-between'>
+                          <p className="text-sm italic">{displayedTitle}</p>
+                        </div>
+                      </div>
+                    </button>
+                      )
+                    })}
+               </div>
+              </div>
+            </div>
+          </div>
+         }
+      </div>
+        
+
+    </>
   )
 }

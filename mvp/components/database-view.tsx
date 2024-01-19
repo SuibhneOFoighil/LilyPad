@@ -1,16 +1,15 @@
 "use client"
 
 import { SearchIcon } from "@/public/icons"
-import type { Course, Item, SelectedItemsLookup } from "@/types/client"
-import { DatabaseLayoutType, DatabaseDataType } from "@/types/client"
-
-import DatabaseItem from "./DatabaseItem"
+import { Item, Course, File, ItemsDatabase, DatabaseLayoutType, DatabaseDataType } from "@/types/client"
 
 import Tooltip from "@mui/material/Tooltip"
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
 
-import { useState } from "react";
+import { JSX, useState } from "react";
 
 function getBodyFormatting(gridType: number) {
     switch (gridType) {
@@ -23,58 +22,61 @@ function getBodyFormatting(gridType: number) {
     }
 }
 
-function getDatabaseBody(dataView: string | null, items: Item[], courses: Course[], invarientDataProps: any) {
-    switch (dataView) {
-        case DatabaseDataType.Files:
-            return items.map((item: Item) => {
-                const props = {...invarientDataProps, item: item};
-                return <DatabaseItem key={item.id} type={DatabaseDataType.Files} {...props} />
-            });
-        case DatabaseDataType.Courses:
-            return courses.map((course: Course) => {
-                const props = {...invarientDataProps, course: course};
-                return <DatabaseItem key={course.id} type={DatabaseDataType.Courses} {...props} />
-            });
-        default:
-            return items.map((item: Item) => {
-                const props = {...invarientDataProps, item: item};
-                return <DatabaseItem key={item.id} type={DatabaseDataType.Files} {...props} />
-            });
+function getDatabaseItems(searchQuery: string, dataType: DatabaseDataType) {
+    const data = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            search: searchQuery,
+        })
     }
+    let url = '';
+    switch (dataType) {
+        case DatabaseDataType.Files:
+            url = '/api/items';
+        case DatabaseDataType.Courses:
+            url = '/api/courses';
+        default:
+            url = '/api/items';
+    }
+    return fetch(url, data).then((res) => res.json())
 }
 
-
 const DatabaseView = ({
-    items, courses, selectedItemsLookup, setSourceViewer,
+    itemsDatabase, setSourceViewer,
 }: {
-    items: Item[],
-    courses: Course[],
-    selectedItemsLookup: SelectedItemsLookup,
-    setSourceViewer: (source: Item) => void,
+    itemsDatabase: ItemsDatabase,
+    setSourceViewer: (source: File) => void,
 }) => {
 
-    const [searchQuery, setSearchQuery ] = useState<string>('');
-    const [dataView, setDataView] = useState<string | null>('files');
-    const [gridType, setGridType] = useState<number>(DatabaseLayoutType.List);
+    // console.log(itemsDatabase)
 
-    const bodyFormatting = getBodyFormatting(gridType);
-    
-    const invarientDataProps = {
-        selectedItemsLookup: selectedItemsLookup,
-        setSourceViewer: setSourceViewer,
-        viewType: gridType,
-    }
-
-    const databaseBody = getDatabaseBody(dataView, items, courses, invarientDataProps);
+    const [gridType, setGridType] = useState<DatabaseLayoutType>(DatabaseLayoutType.List);
+    const [dataType, setDataType] = useState<DatabaseDataType>(DatabaseDataType.Files);
+    const [displayedItems, setDisplayedItems] = useState<Item[]>(itemsDatabase.get(dataType));
 
     const handleInput = (
         event: React.MouseEvent<HTMLElement>,
-        newView: string | null,
+        type: DatabaseDataType | null,
       ) => {
-        if (newView !== null) {
-          setDataView(newView);
+        console.log("Handling input");
+        if (type !== null) {
+            setDataType(type);
+            setDisplayedItems(itemsDatabase.get(type));
         }
-    };
+    }
+
+    const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        const searchQuery = event.target.value;
+        getDatabaseItems(searchQuery, dataType)
+        .then((data) => {
+            setDisplayedItems(data);
+            itemsDatabase.update(dataType, data);
+        })
+    }
 
     return (
         // database view
@@ -91,23 +93,21 @@ const DatabaseView = ({
                             className="flex-grow-3 ml-3 w-full border-none bg-transparent outline-none placeholder-gray-400"
                             placeholder="Search"
                             type="search"
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                            }}
+                            onChange={(e) => handleSearch(e)}
                         />
                     </form>
 
                     <div className='flex flex-col h-full'>
                         <ToggleButtonGroup
-                            value={dataView}
+                            value={dataType}
                             exclusive
                             onChange={handleInput}
                             size="small"
                             className='rounded-lg h-full'>
-                            <ToggleButton value="files" className='font-serif'>
+                            <ToggleButton value={DatabaseDataType.Files} className='font-serif'>
                             files
                             </ToggleButton>
-                            <ToggleButton value="courses" className='font-serif'>
+                            <ToggleButton value={DatabaseDataType.Courses} className='font-serif'>
                             courses
                             </ToggleButton>
                         </ToggleButtonGroup>
@@ -115,11 +115,96 @@ const DatabaseView = ({
                 </div>
             </div>
             {/* Database Body' */}
-            <div className={bodyFormatting}>  
-                {databaseBody}
+            <div className={getBodyFormatting(gridType)}>  
+                {
+                    displayedItems.map((item: Item, i:number) => {
+                        if (dataType === DatabaseDataType.Files) {
+                            item = item as File;
+                        }
+                        else {
+                            item = item as Course;
+                        }
+                        return <DatabaseItem key={i} item={item} type={dataType} {...{
+                            layout: gridType,
+                            setSourceViewer: setSourceViewer,
+                            itemsDatabase: itemsDatabase,
+                        }} />
+                    })
+                }
             </div>
         </div>
     )
 }
+
+
+const DatabaseItem = ({
+    item, type, layout, setSourceViewer, itemsDatabase
+}: {
+    item: Course | File,
+    type: DatabaseDataType,
+    layout: DatabaseLayoutType,
+    setSourceViewer: (source: Item) => void,
+    itemsDatabase: ItemsDatabase,
+}) => {
+
+    const [isClicked, setIsClicked] = useState(itemsDatabase.isSelected(item));
+    const [isHovered, setIsHovered] = useState(false);
+    
+    return (
+        <div
+        key={item.id}
+        className={`h-full relative rounded-lg p-4 shadow outline outline-1 cursor-pointer ${isClicked ? 'bg-gray-200 hover:bg-gray-300 outline-gray-300' : 'hover:bg-gray-100 outline-gray-200'}`}
+        onClick={() => {
+            setIsClicked(!isClicked);
+            itemsDatabase.toggle(item)
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        >
+            <div className={`${isClicked ? 'text-gray-700' : 'text-gray-500'}`}>
+                {
+                    layout === DatabaseLayoutType.Grid ? (
+                        <>
+                            <p className="font-bold">{item.name}</p>
+                            <p>{item.description}</p>
+                            <Tooltip title="View Source" placement="top-start">
+                                <button>
+                                    <FontAwesomeIcon
+                                    icon={faInfoCircle}
+                                    className="w-5 h-5 m-auto hover:text-gray-700 absolute bottom-5 right-5"
+                                    onClick={() => {
+                                        setSourceViewer(item);
+                                    }}
+                                    />
+                                </button>
+                            </Tooltip>
+                        </>
+                    ) : (
+                        <div className="flex flex-row justify-between">
+                           <div className="flex flex-col">
+                                <p className="font-bold">{item.name}</p>
+                                <div className="flex flex-row">
+                                    <p>{item.description}</p>
+                                </div>
+                            </div>
+                            <Tooltip title="View Source">
+                                <button>
+                                    <FontAwesomeIcon
+                                    icon={faInfoCircle}
+                                    className="w-5 h-5 m-auto hover:text-gray-700"
+                                    onClick={() => {
+                                        setSourceViewer(item);
+                                    }}
+                                    />
+                                </button>
+                            </Tooltip>
+                        </div>
+                    )
+                }
+            </div>
+        </div>
+    )
+}
+
 
 export default DatabaseView;

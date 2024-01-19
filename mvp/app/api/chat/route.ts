@@ -12,7 +12,7 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import type { Document } from "langchain/dist/document";
 
-import type { ItemCitation } from "@/types/client";
+import type { FileCitation } from "@/types/client";
 import { supabase as client } from "../client";
 
 export const runtime = "edge";
@@ -26,9 +26,8 @@ export async function POST(req: NextRequest) {
     const messages = body.messages ?? [];
     const previousMessages = messages.slice(0, -1);
     const currentMessageContent = messages[messages.length - 1].content;
-    const requestedIds: number[] = body.itemIds ?? [];
-    const requestedIdsString = `(${requestedIds.join(',')})`;
-    console.log("requestedIdsString", requestedIdsString);
+    const requestedFileIds = body.selectedFileIds ?? [];
+    const requestedCourseIds = body.selectedCourseIds ?? [];
 
     const model = new ChatOpenAI({
       modelName: "gpt-3.5-turbo",
@@ -41,24 +40,23 @@ export async function POST(req: NextRequest) {
       queryName: "match_documents",
     });
 
-    const idFilterFN: SupabaseFilterRPCCall = (rpc) =>
-      rpc.filter("metadata->>item_id", "in", requestedIdsString);
+    const idFilterFN: SupabaseFilterRPCCall = await get_filter_fn(requestedFileIds, requestedCourseIds);
 
     // multi-query retrieval
     const retriever = MultiQueryRetriever.fromLLM({
       llm: model,
       retriever: vectorstore.asRetriever(
-        5, // number of documents to retrieve
+        3, // number of documents to retrieve
         idFilterFN // metadata filter function
       ),
-      verbose: true,
+      // verbose: true,
     });
 
     const documents = await retriever.getRelevantDocuments(currentMessageContent) 
     addMetadata(documents)
     const context = combineDocuments(documents);
-    
-    console.log("Context: ", context);
+
+    // console.log("Context: ", context);
 
     const prompt = PromptTemplate.fromTemplate(`Take a deep breath. This is very important for my career.
     
@@ -67,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     % Formatting Instructions %
     If you reference the quotes, only cite the numbers and always cite them individually in your response, like so: 'I have always supported dogs [1][2].' or 'I have always supported dogs [1] and cats [2].'
-    Limit your reponse to 300 words or less.
+    Limit your reponse to 100 words or less.
 
     -----
     Ready?
@@ -76,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     Material: {context}
     
-    Your Answer:`);
+    Your Answer in 100 words or less:`);
 
     const answerChain = RunnableSequence.from([
       prompt,
@@ -93,7 +91,12 @@ export async function POST(req: NextRequest) {
       JSON.stringify(
         documents.map((doc) => {
           const { item_id, page_number, citation_number } = doc.metadata;
-          const citation : ItemCitation = { item_id, page_number, citation_number };
+          const citation : FileCitation = {
+            file_id: item_id,
+            number: citation_number,
+            page_number,
+            doc_content: doc.pageContent,
+          };
           return citation;
         })
       ),
@@ -134,31 +137,40 @@ function combineDocuments(documents: Document[] | undefined) : string {
   return serializedDocs.join('\n\n');
 }
 
-// async function addItemMetadata(documents:Document[]) : Promise<Document[] | undefined> {
-  //   const item_ids = documents.map((doc) => doc.metadata.item_id)
-  //   try {
-  //     // 1. query supabase for items
-  //     const {data, error} = await client.from("items").select("*").in("id", item_ids)
-  //     if (error) {
-  //       console.log(error);
-  //     }
-  //     else {
-  //       // 2. add item metadata to documents
-  //       const items_lookup: Record<number, any> = {}
-  //       data.map((item) => {
-  //         const id = item.id
-  //         items_lookup[id] = item
-  //       })
-  
-  //       // 3. return documents
-  //       return documents.map((doc) => {
-  //         const item_id = doc.metadata.item_id
-  //         const item_data = items_lookup[item_id]
-  //         const metadata = {...doc.metadata, item_data}
-  //         return {...doc, metadata}
-  //       })
-  //     }
-  //   } catch (error) {
-  //     console.log(error);
-  //   }
-  // }
+async function get_filter_fn(requestedFileIds: number[], requestedCourseIds: number[]) : Promise<SupabaseFilterRPCCall> {
+
+  if (requestedFileIds.length === 0 && requestedCourseIds.length === 0) {
+    return (rpc) => rpc;
+  }
+
+  let requestedFileIdsString = `(${requestedFileIds.join(',')})`;
+
+  if (requestedCourseIds.length > 0) {
+
+    let requestedIdsSet = new Set<number>(requestedFileIds);
+    
+    // get all file_ids associated with requested course_ids
+    const { data: courseFileIds, error } = await client
+      .from("courses")
+      .select("file_ids")
+      .in("id", requestedCourseIds);
+
+    // console.log("courseFileIds", courseFileIds);
+
+    courseFileIds?.forEach((course) => {
+      const fileIds = course.file_ids;
+      fileIds.forEach((fileId: number) => requestedIdsSet.add(fileId));
+    });
+
+    // console.log("requestedIdsSet", requestedIdsSet);
+
+    const allReqFileIds = Array.from(requestedIdsSet);
+    requestedFileIdsString = `(${allReqFileIds.join(',')})`;
+  }
+
+  // console.log("requestedFileIdsString", requestedFileIdsString);
+
+  // TODO: change item_id to file_id
+  const idFilterFN: SupabaseFilterRPCCall = (rpc) => rpc.filter("metadata->>item_id", "in", requestedFileIdsString);
+  return idFilterFN;
+}

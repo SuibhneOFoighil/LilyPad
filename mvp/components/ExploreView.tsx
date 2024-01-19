@@ -1,63 +1,44 @@
 "use client";
 import { useState } from "react";
-import { Item, Course, SelectedItemsLookup } from "@/types/client";
+import { Item, File, Course, ItemsDatabase } from "@/types/client";
 import DatabaseView from "./database-view";
 import ChatView from "./chat-view";
 import SourceViewer from "./source-viewer";
-import { init } from "next/dist/compiled/webpack/webpack";
 
 const ExploreView = ({
-    initItems, initCourses,
+    initFiles, initCourses,
 }: {
-    initItems: Item[],
+    initFiles: File[],
     initCourses: Course[],
 }) => {
 
-    const selectedItemsLookup: SelectedItemsLookup = new SelectedItemsLookup(
-        initItems, initCourses
-    );
+    const [itemsDatabase] = useState<ItemsDatabase>(new ItemsDatabase(initFiles, initCourses));
+    // const [items, setFiles] = useState<File[]>(initFiles);
+    // const [courses, setCourses] = useState<Course[]>(initCourses);
 
-    // console.log(selectedItemsLookup);
+    const [leftSourceViewer, setLeftSourceViewer] = useState<File | Course | null>(null);
+    const [rightSourceViewer, setRightSourceViewer] = useState<File | Course | null>(null);
 
-    const [items, setItems] = useState<Item[]>(
-        initItems
-    );
+    const databaseViewProps = {
+        itemsDatabase: itemsDatabase,
+        setSourceViewer: setRightSourceViewer,
+    }
 
-    const [courses, setCourses] = useState<Course[]>(
-        initCourses
-    );
-
-    const [leftSourceViewer, setLeftSourceViewer] = useState<Item | null>(null);
-
-    const [rightSourceViewer, setRightSourceViewer] = useState<Item | null>(null);
+    const chatViewProps = {
+        itemsDatabase: itemsDatabase,
+        setSourceViewer: setLeftSourceViewer,
+    }
 
     const leftSourceViewerProps = {
         sourceViewer: leftSourceViewer,
         setSourceViewer: setLeftSourceViewer,
+        itemsDatabase: itemsDatabase,
     }
 
     const rightSourceViewerProps = {
         sourceViewer: rightSourceViewer,
         setSourceViewer: setRightSourceViewer,
-    }
-
-    const databaseViewProps = {
-        items: items,
-        courses: courses,
-        selectedItemsLookup: selectedItemsLookup,
-        setSourceViewer: setRightSourceViewer,
-    }
-
-    const itemsLookup = items.reduce((acc: Record<string, Item>, item: Item) => {
-        acc[item.id] = item;
-        return acc;
-    }
-    , {});
-
-    const chatViewProps = {
-        itemsLookup: itemsLookup,
-        selectedItemsLookup: selectedItemsLookup,
-        setSourceViewer: setLeftSourceViewer,
+        itemsDatabase: itemsDatabase,
     }
 
     return (

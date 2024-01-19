@@ -1,12 +1,122 @@
 "use client"
 
-import type { Item } from "@/types/client";
+import type { Item, File, Course } from "@/types/client";
+import { ItemsDatabase, DatabaseDataType } from "@/types/client";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faX, faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
+
 import { useState } from "react";
+
 import { ReactJSXElement } from "@emotion/react/types/jsx-namespace";
 
-const DocumentSection = ({title, isOpen, body}: {title: string, isOpen: boolean, body: ReactJSXElement}) => {
+export default function SourceViewer({
+  sourceViewer, setSourceViewer, itemsDatabase
+}: {
+  sourceViewer: File | Course | null,
+  setSourceViewer: (source: File | Course | null) => void,
+  itemsDatabase: ItemsDatabase,
+}) {
+
+  // check if sourceViewer is a file or course
+  const dataType = sourceViewer?.discriminator;
+  const source = sourceViewer; //needs to opposite
+  const similarItems = itemsDatabase.similar_items(source);
+  console.log(similarItems);
+
+  const similarItemsBody = (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pt-4">
+      {similarItems?.map((item : Course | File, i) => {
+        const itemNumber = i + 1;
+        const displayedTitle = item.name?.length > 100 ? item.name.slice(0, 100) + "..." : item.name;
+        return (
+          <div key={i} 
+          className="flex gap-2 h-full shadow hover:bg-gray-100 outline outline-1 outline-gray-200 rounded-lg p-4 cursor-pointer"
+          onClick={() => {
+            setSourceViewer(item); //needs to opposite
+          }}>
+            <p className="text-med font-semibold">{itemNumber}</p>
+            <p className="text-sm italic text-center">{displayedTitle}</p>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col bg-white p-4 h-full">
+
+      {/* navagation header */}
+      <div className="grid justify-items-end">
+        <button onClick={() => {setSourceViewer(null)}}>
+          <FontAwesomeIcon icon={faX} className="w-3 h-3" />
+        </button>
+      </div>
+
+        {/* document */}
+      <div className="py-4 px-6">
+        {/* header */}
+        <div className="flex flex-col">
+          <p className="font-semibold">{source?.name}</p>
+        </div>
+        {/* description */}
+        <ItemSection title="Description" isOpen={true} body={<p>{source?.description}</p>} />
+        {/* variable document segments */}
+        { dataType && dataType === DatabaseDataType.Files ? <FileBody file={source as File} /> : <CourseBody course={source as Course} /> }
+        {/* similar sources footer */}
+        { similarItems.length ? <ItemSection title="Similar Sources" isOpen={true} body={similarItemsBody} /> : null }
+      </div>
+
+    </div>
+  )
+}
+
+const FileBody = ({file}: {file: File}) => {
+
+  const sectionsBody = (
+    <>
+      {
+        file.sections?.map((section, i) => {
+          return (
+            <div key={i} className="mt-2">
+              <p className="font-semibold">{section.title}</p>
+              <p>{section.summary}</p>
+            </div>
+          )
+        })
+      }
+    </>
+  )
+
+  const sourceInfoBody = (
+    <>
+      <p>Filename: {file.file_name}</p>
+      <p>Pages: {file.number_pages}</p>
+      <p>Author: {file.author}</p>
+      <p>Source Link: {file.source_url}</p>
+    </>
+  )
+
+  return (
+    <>
+      {/* sections */}
+      <ItemSection title="Sections" isOpen={true} body={sectionsBody} />
+      {/* source info */}
+      <ItemSection title="Source Info" isOpen={true} body={<p>{sourceInfoBody}</p>} />
+    </>
+  )
+}
+
+const CourseBody = ({course}: {course: Course}) => {
+  return (
+    <>
+      {/* NOTHING YET */}
+      {/* <ItemSection title="Summary" isOpen={true} body={<p>{course.description}</p>} /> */}
+    </>
+  )
+}
+
+const ItemSection = ({title, isOpen, body}: {title: string, isOpen: boolean, body: ReactJSXElement}) => {
 
   const [isExpanded, setExpanded] = useState<boolean>(isOpen);
 
@@ -27,68 +137,6 @@ const DocumentSection = ({title, isOpen, body}: {title: string, isOpen: boolean,
       <div className={`${isExpanded ? '' : 'hidden'}`}>
         {body}
       </div>
-    </div>
-  )
-}
-
-export default function SourceViewer({ ...props}) {
-
-  const source: Item = props.sourceViewer ;
-  const setSourceViewer = props.setSourceViewer;
-  
-  const summaryBody = (
-    <p>{source.content_summary}</p>
-  )
-
-  const sectionsBody = (
-    <>
-      {source.content_sections?.map((section, i) => {
-        return (
-          <div key={i} className="mt-2">
-            <p className="font-semibold">{section.title}</p>
-            <p>{section.summary}</p>
-          </div>
-        )
-      })}
-    </>
-  )
-
-  const sourceInfoBody = (
-    <>
-      <p>Filename: {source.file_name}</p>
-      <p>Pages: {source.number_pages}</p>
-      <p>Author: {source.author}</p>
-      <p>Course: {source.course_name}</p>
-      <p>Source Link: {source.source_url}</p>
-    </>
-  )
-
-  return (
-    <div className="flex flex-col bg-white p-4 h-full">
-
-      {/* navagation header */}
-      <div className="grid justify-items-end">
-        <button onClick={() => {setSourceViewer(null)}}>
-          <FontAwesomeIcon icon={faX} className="w-3 h-3" />
-        </button>
-      </div>
-
-        {/* document */}
-      <div className="mt-4 h-full">
-        {/* header */}
-        <div className="flex flex-col">
-          <p className="font-semibold">{source.content_name}</p>
-          <p className="italic">{source.author}</p>
-          <p>{source.course_name}</p>
-        </div>
-        {/* summary */}
-        <DocumentSection title="Summary" isOpen={true} body={summaryBody} />
-        {/* sections */}
-        <DocumentSection title="Sections" isOpen={false} body={sectionsBody} />
-        {/* source info */}
-        <DocumentSection title="Source Info" isOpen={false} body={sourceInfoBody} />
-      </div>
-
     </div>
   )
 }

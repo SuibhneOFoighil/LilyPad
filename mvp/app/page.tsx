@@ -18,11 +18,15 @@ export default async function Page() {
 
 async function getExploreViewProps() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-  const initItems = await fetch(`${baseUrl}/api/database/items`).then((res) => res.json());
-  const initCourses = await fetch(`${baseUrl}/api/database/courses`).then((res) => res.json());
+  const initFiles = await fetch(`${baseUrl}/api/files`, {
+    cache: "no-store"
+  }).then((res) => res.json());
+  const initCourses = await fetch(`${baseUrl}/api/courses`, {
+    cache: "no-store"
+  }).then((res) => res.json());
 
   return {
-      initItems: initItems,
+      initFiles: initFiles,
       initCourses: initCourses,
   }
 }
