@@ -23,6 +23,7 @@ export default function ChatView({itemsDatabase, setSourceViewer}: {
 }) {
 
     const [sourcesForMessages, setSourcesForMessages] = useState<Record<string, any>>({});
+    const [isStreaming, setIsStreaming] = useState<boolean>(false);
 
     const { 
       messages, input, setInput, handleInputChange, handleSubmit, isLoading: chatEndpointIsLoading, setMessages } = useChat({
@@ -42,13 +43,15 @@ export default function ChatView({itemsDatabase, setSourceViewer}: {
               }, []);
             // console.log(sources);
             setSourcesForMessages({...sourcesForMessages, [messageIndexHeader]: sources});
+            setIsStreaming(true);
           }
         },
         onError(error) {
-          console.log(error);        
+          console.log(error);      
         },
         onFinish() {
           setInput('');
+          setIsStreaming(false);
         }
     });
 
@@ -92,7 +95,6 @@ export default function ChatView({itemsDatabase, setSourceViewer}: {
                 
                 const chatBubbleProps = {
                   message: message,
-                  isLoading: chatEndpointIsLoading,
                   sources: sourcesForMessages[index.toString()],
                   setSourceViewer: setSourceViewer,
                 }
@@ -175,12 +177,10 @@ const SendButton = () => {
 
 function ChatBubble({
   message,
-  isLoading,
   sources,
   setSourceViewer,
 }: {
   message: Message,
-  isLoading: boolean,
   sources?: CitedFile[] | undefined,
   setSourceViewer: React.Dispatch<React.SetStateAction<File | null>>,
 }) {

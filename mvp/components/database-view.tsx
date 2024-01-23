@@ -7,7 +7,7 @@ import Tooltip from "@mui/material/Tooltip"
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faInfoCircle } from "@fortawesome/free-solid-svg-icons";
+import { faInfoCircle, faPlusCircle } from "@fortawesome/free-solid-svg-icons";
 
 import { JSX, useState } from "react";
 
@@ -35,11 +35,11 @@ function getDatabaseItems(searchQuery: string, dataType: DatabaseDataType) {
     let url = '';
     switch (dataType) {
         case DatabaseDataType.Files:
-            url = '/api/items';
+            url = '/api/files';
         case DatabaseDataType.Courses:
             url = '/api/courses';
         default:
-            url = '/api/items';
+            url = '/api/files';
     }
     return fetch(url, data).then((res) => res.json())
 }
@@ -55,7 +55,7 @@ const DatabaseView = ({
 
     const [gridType, setGridType] = useState<DatabaseLayoutType>(DatabaseLayoutType.List);
     const [dataType, setDataType] = useState<DatabaseDataType>(DatabaseDataType.Files);
-    const [displayedItems, setDisplayedItems] = useState<Item[]>(itemsDatabase.get(dataType));
+    const [displayedItems, setDisplayedItems] = useState<Item[] | null>(itemsDatabase.get(dataType));
 
     const handleInput = (
         event: React.MouseEvent<HTMLElement>,
@@ -73,8 +73,10 @@ const DatabaseView = ({
         const searchQuery = event.target.value;
         getDatabaseItems(searchQuery, dataType)
         .then((data) => {
+            if (data !== null) {
+                itemsDatabase.update(dataType, data);
+            }
             setDisplayedItems(data);
-            itemsDatabase.update(dataType, data);
         })
     }
 
@@ -117,7 +119,7 @@ const DatabaseView = ({
             {/* Database Body' */}
             <div className={getBodyFormatting(gridType)}>  
                 {
-                    displayedItems.map((item: Item, i:number) => {
+                    displayedItems?.map((item: Item, i:number) => {
                         if (dataType === DatabaseDataType.Files) {
                             item = item as File;
                         }
@@ -136,6 +138,13 @@ const DatabaseView = ({
     )
 }
 
+function shorten_string(str: string, max_length: number) {
+    if (str.length > max_length) {
+        return str.slice(0, max_length) + '...';
+    }
+    return str;
+}
+
 
 const DatabaseItem = ({
     item, type, layout, setSourceViewer, itemsDatabase
@@ -148,18 +157,14 @@ const DatabaseItem = ({
 }) => {
 
     const [isClicked, setIsClicked] = useState(itemsDatabase.isSelected(item));
-    const [isHovered, setIsHovered] = useState(false);
+
+    const displayedName = shorten_string(item.name, 150);
+    const displayedDescription = shorten_string(item.description, 200);
     
     return (
         <div
         key={item.id}
         className={`h-full relative rounded-lg p-4 shadow outline outline-1 cursor-pointer ${isClicked ? 'bg-gray-200 hover:bg-gray-300 outline-gray-300' : 'hover:bg-gray-100 outline-gray-200'}`}
-        onClick={() => {
-            setIsClicked(!isClicked);
-            itemsDatabase.toggle(item)
-        }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         >
             <div className={`${isClicked ? 'text-gray-700' : 'text-gray-500'}`}>
                 {
@@ -180,24 +185,36 @@ const DatabaseItem = ({
                             </Tooltip>
                         </>
                     ) : (
-                        <div className="flex flex-row justify-between">
-                           <div className="flex flex-col">
-                                <p className="font-bold">{item.name}</p>
-                                <div className="flex flex-row">
-                                    <p>{item.description}</p>
-                                </div>
+                        <div className="flex flex-row justify-between gap-3">
+                           <div className="flex flex-col overflow-auto">
+                                <p className="font-bold truncate ...">{displayedName}</p>
+                                <p className="truncate ...">{displayedDescription}</p>
                             </div>
-                            <Tooltip title="View Source">
-                                <button>
-                                    <FontAwesomeIcon
-                                    icon={faInfoCircle}
-                                    className="w-5 h-5 m-auto hover:text-gray-700"
-                                    onClick={() => {
-                                        setSourceViewer(item);
-                                    }}
-                                    />
-                                </button>
-                            </Tooltip>
+                            <div className="flex flex-row gap-3">
+                                <Tooltip title="Add to Chat">
+                                    <button>
+                                        <FontAwesomeIcon
+                                        icon={faPlusCircle}
+                                        className="w-5 h-5 m-auto hover:text-gray-700"
+                                        onClick={() => {
+                                            setIsClicked(!isClicked);
+                                            itemsDatabase.toggle(item);
+                                        }}
+                                        />
+                                    </button>
+                                </Tooltip>
+                                <Tooltip title="View Source">
+                                    <button>
+                                        <FontAwesomeIcon
+                                        icon={faInfoCircle}
+                                        className="w-5 h-5 m-auto hover:text-gray-700"
+                                        onClick={() => {
+                                            setSourceViewer(item);
+                                        }}
+                                        />
+                                    </button>
+                                </Tooltip>
+                            </div>
                         </div>
                     )
                 }

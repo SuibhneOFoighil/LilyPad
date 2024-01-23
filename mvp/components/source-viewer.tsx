@@ -93,7 +93,7 @@ const FileBody = ({file}: {file: File}) => {
       <p>Filename: {file.file_name}</p>
       <p>Pages: {file.number_pages}</p>
       <p>Author: {file.author}</p>
-      <p>Source Link: {file.source_url}</p>
+      <a href={file.source_url} className="text-blue-400 hover:text-blue-600">File Link</a>
     </>
   )
 

@@ -1,6 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-/python/
+/python-api/test-files/*
+/python-api/__pycache__
+/python-api/index.py
+/python-api/test.py
+/python-api/YouTubeLoader.py
 /.vscode/
 
 # dependencies

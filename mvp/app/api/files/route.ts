@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(files);
         }
         else {
-            const {data: files, error} = await client.from("files").select("*").textSearch("item_content", query);
+            const {data: files, error} = await client.from("files").select("*").textSearch("file_content", query);
             return NextResponse.json(files);
         }
     }
